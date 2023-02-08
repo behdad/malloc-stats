@@ -11,7 +11,7 @@ $ make
 ## Usage
 
 ```
-$ LD_PRELOAD=/path/to/malloc-stats.so your-binary
+$ LD_PRELOAD=/path/to/malloc-stats.so your-binary args...
 ```
 
 ## Interpretting the results

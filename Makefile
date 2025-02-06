@@ -1,10 +1,7 @@
-all: malloc-stats.so
+all: malloc-stats.dylib
 
-malloc-stats.o: malloc-stats.c
-	$(CC) -c -fPIC -o $@ $<
-
-malloc-stats.so: malloc-stats.o
-	$(LD) -shared -o $@ $< -ldl
+malloc-stats.dylib: malloc-stats.o
+	$(CC) -dynamiclib malloc-stats.c -o malloc-stats.dylib
 
 clean:
-	$(RM) malloc-stats.o malloc-stats.so
+	$(RM) malloc-stats.dylib

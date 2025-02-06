@@ -172,19 +172,17 @@ func_stats_add (const void *caller, int is_realloc, size_t size)
 
 #include <dlfcn.h>
 
-static void *(*old_malloc)(size_t);
-static void *(*old_calloc)(size_t, size_t);
-static void *(*old_realloc)(void *, size_t);
-static int enable_hook = 0;
+static int enable_hook = 1;
 
 static void init(void);
 
-void *
-malloc(size_t size)
-{
-    if (!old_malloc)
-      init ();
+#define DYLD_INTERPOSE(_replacment,_replacee) \
+__attribute__((used)) static struct{ const void* replacment; const void* replacee; } _interpose_##_replacee \
+__attribute__ ((section ("__DATA,__interpose"))) = { (const void*)(unsigned long)&_replacment, (const void*)(unsigned long)&_replacee };
 
+void *
+my_malloc(size_t size)
+{
     if (enable_hook) {
 	enable_hook = 0;
 	void *caller = __builtin_return_address(0);
@@ -192,15 +190,12 @@ malloc(size_t size)
 	enable_hook = 1;
     }
 
-    return old_malloc (size);
+    return malloc (size);
 }
 
 void *
-calloc(size_t nmemb, size_t size)
+my_calloc(size_t nmemb, size_t size)
 {
-    if (!old_calloc)
-      init ();
-
     if (enable_hook) {
 	enable_hook = 0;
 	void *caller = __builtin_return_address(0);
@@ -208,15 +203,12 @@ calloc(size_t nmemb, size_t size)
 	enable_hook = 1;
     }
 
-    return old_calloc (nmemb, size);
+    return calloc (nmemb, size);
 }
 
 void *
-realloc(void *ptr, size_t size)
+my_realloc(void *ptr, size_t size)
 {
-    if (!old_malloc)
-      init ();
-
     if (enable_hook) {
 	enable_hook = 0;
 	void *caller = __builtin_return_address(0);
@@ -224,29 +216,17 @@ realloc(void *ptr, size_t size)
 	enable_hook = 1;
     }
 
-    return old_realloc (ptr, size);
+    return realloc (ptr, size);
 }
 
-static void
-init(void)
-{
-    old_malloc = dlsym(RTLD_NEXT, "malloc");
-    if (!old_malloc) {
-	fprintf(stderr, "%s\n", dlerror());
-	exit(1);
-    }
-    old_calloc = dlsym(RTLD_NEXT, "calloc");
-    if (!old_calloc) {
-	fprintf(stderr, "%s\n", dlerror());
-	exit(1);
-    }
-    old_realloc = dlsym(RTLD_NEXT, "realloc");
-    if (!old_realloc) {
-	fprintf(stderr, "%s\n", dlerror());
-	exit(1);
-    }
-    enable_hook = 1;
-}
+#define DYLD_INTERPOSE(_replacment,_replacee) \
+__attribute__((used)) static struct{ const void* replacment; const void* replacee; } _interpose_##_replacee \
+__attribute__ ((section ("__DATA,__interpose"))) = { (const void*)(unsigned long)&_replacment, (const void*)(unsigned long)&_replacee };
+
+DYLD_INTERPOSE(my_malloc, malloc);
+DYLD_INTERPOSE(my_calloc, calloc);
+DYLD_INTERPOSE(my_realloc, realloc);
+
 
 /* reporting */
 

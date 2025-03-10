@@ -173,6 +173,7 @@ func_stats_add (const void *caller, int is_realloc, size_t size)
 #include <dlfcn.h>
 
 static void *(*old_malloc)(size_t);
+static int (*old_posix_memalign)(void **, size_t, size_t);
 static void *(*old_calloc)(size_t, size_t);
 static void *(*old_realloc)(void *, size_t);
 static int enable_hook = 0;
@@ -193,6 +194,22 @@ malloc(size_t size)
     }
 
     return old_malloc (size);
+}
+
+int
+posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+  if (!old_posix_memalign)
+    init ();
+
+  if (enable_hook) {
+	enable_hook = 0;
+	void *caller = __builtin_return_address(0);
+	func_stats_add (caller, 0, size);
+	enable_hook = 1;
+  }
+
+  return old_posix_memalign (memptr, alignment, size);
 }
 
 void *
@@ -232,6 +249,11 @@ init(void)
 {
     old_malloc = dlsym(RTLD_NEXT, "malloc");
     if (!old_malloc) {
+	fprintf(stderr, "%s\n", dlerror());
+	exit(1);
+    }
+    old_posix_memalign = dlsym(RTLD_NEXT, "posix_memalign");
+    if (!old_posix_memalign) {
 	fprintf(stderr, "%s\n", dlerror());
 	exit(1);
     }

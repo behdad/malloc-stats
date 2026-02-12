@@ -172,15 +172,15 @@ func_stats_add (const void *caller, int is_realloc, size_t size)
 
 #include <dlfcn.h>
 
+#if defined(__APPLE__)
+
 static int enable_hook = 1;
 
-static void init(void);
+#define DYLD_INTERPOSE(_replacement,_replacee) \
+__attribute__((used)) static struct { const void *replacement; const void *replacee; } _interpose_##_replacee \
+__attribute__ ((section ("__DATA,__interpose"))) = { (const void *)(unsigned long) &_replacement, (const void *)(unsigned long) &_replacee };
 
-#define DYLD_INTERPOSE(_replacment,_replacee) \
-__attribute__((used)) static struct{ const void* replacment; const void* replacee; } _interpose_##_replacee \
-__attribute__ ((section ("__DATA,__interpose"))) = { (const void*)(unsigned long)&_replacment, (const void*)(unsigned long)&_replacee };
-
-void *
+static void *
 my_malloc(size_t size)
 {
     if (enable_hook) {
@@ -193,7 +193,20 @@ my_malloc(size_t size)
     return malloc (size);
 }
 
-void *
+static int
+my_posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+    if (enable_hook) {
+	enable_hook = 0;
+	void *caller = __builtin_return_address(0);
+	func_stats_add (caller, 0, size);
+	enable_hook = 1;
+    }
+
+    return posix_memalign (memptr, alignment, size);
+}
+
+static void *
 my_calloc(size_t nmemb, size_t size)
 {
     if (enable_hook) {
@@ -206,7 +219,7 @@ my_calloc(size_t nmemb, size_t size)
     return calloc (nmemb, size);
 }
 
-void *
+static void *
 my_realloc(void *ptr, size_t size)
 {
     if (enable_hook) {
@@ -219,13 +232,112 @@ my_realloc(void *ptr, size_t size)
     return realloc (ptr, size);
 }
 
-#define DYLD_INTERPOSE(_replacment,_replacee) \
-__attribute__((used)) static struct{ const void* replacment; const void* replacee; } _interpose_##_replacee \
-__attribute__ ((section ("__DATA,__interpose"))) = { (const void*)(unsigned long)&_replacment, (const void*)(unsigned long)&_replacee };
-
 DYLD_INTERPOSE(my_malloc, malloc);
+DYLD_INTERPOSE(my_posix_memalign, posix_memalign);
 DYLD_INTERPOSE(my_calloc, calloc);
 DYLD_INTERPOSE(my_realloc, realloc);
+
+#else
+
+static void *(*old_malloc)(size_t);
+static int (*old_posix_memalign)(void **, size_t, size_t);
+static void *(*old_calloc)(size_t, size_t);
+static void *(*old_realloc)(void *, size_t);
+static int enable_hook = 0;
+
+static void init(void);
+
+void *
+malloc(size_t size)
+{
+    if (!old_malloc)
+	init ();
+
+    if (enable_hook) {
+	enable_hook = 0;
+	void *caller = __builtin_return_address(0);
+	func_stats_add (caller, 0, size);
+	enable_hook = 1;
+    }
+
+    return old_malloc (size);
+}
+
+int
+posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+    if (!old_posix_memalign)
+	init ();
+
+    if (enable_hook) {
+	enable_hook = 0;
+	void *caller = __builtin_return_address(0);
+	func_stats_add (caller, 0, size);
+	enable_hook = 1;
+    }
+
+    return old_posix_memalign (memptr, alignment, size);
+}
+
+void *
+calloc(size_t nmemb, size_t size)
+{
+    if (!old_calloc)
+	init ();
+
+    if (enable_hook) {
+	enable_hook = 0;
+	void *caller = __builtin_return_address(0);
+	func_stats_add (caller, 0, nmemb * size);
+	enable_hook = 1;
+    }
+
+    return old_calloc (nmemb, size);
+}
+
+void *
+realloc(void *ptr, size_t size)
+{
+    if (!old_realloc)
+	init ();
+
+    if (enable_hook) {
+	enable_hook = 0;
+	void *caller = __builtin_return_address(0);
+	func_stats_add (caller, 1, size);
+	enable_hook = 1;
+    }
+
+    return old_realloc (ptr, size);
+}
+
+static void
+init(void)
+{
+    old_malloc = dlsym(RTLD_NEXT, "malloc");
+    if (!old_malloc) {
+	fprintf(stderr, "%s\n", dlerror());
+	exit(1);
+    }
+    old_posix_memalign = dlsym(RTLD_NEXT, "posix_memalign");
+    if (!old_posix_memalign) {
+	fprintf(stderr, "%s\n", dlerror());
+	exit(1);
+    }
+    old_calloc = dlsym(RTLD_NEXT, "calloc");
+    if (!old_calloc) {
+	fprintf(stderr, "%s\n", dlerror());
+	exit(1);
+    }
+    old_realloc = dlsym(RTLD_NEXT, "realloc");
+    if (!old_realloc) {
+	fprintf(stderr, "%s\n", dlerror());
+	exit(1);
+    }
+    enable_hook = 1;
+}
+
+#endif
 
 
 /* reporting */

@@ -113,11 +113,13 @@ resolve_addrs (struct func_stat_t *func_stats, int num)
 	void **addrs;
 	char **strings;
 
-	addrs = malloc (num * sizeof (void *));
+	addrs = _perm_alloc (num * sizeof (void *));
 	for (i = 0; i < num; i++)
 		addrs[i] = (void *) func_stats[i].addr;
 
 	strings = backtrace_symbols (addrs, num);
+	if (strings == NULL)
+		exit (1);
 
 	for (i = 0; i < num; i++) {
 		char *p;
@@ -137,7 +139,6 @@ resolve_addrs (struct func_stat_t *func_stats, int num)
 	}
 
 	free (strings);
-	free (addrs);
 }
 
 static void

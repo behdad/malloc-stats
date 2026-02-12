@@ -1,6 +1,6 @@
 # malloc-stats
 
-Small LD_PRELOAD library to show allocation stats
+Small preload/interpose library to show allocation stats
 
 ## Build
 
@@ -8,13 +8,26 @@ Small LD_PRELOAD library to show allocation stats
 $ make
 ```
 
-## Usage
+Build output depends on platform:
+
+- Linux/other POSIX: `malloc-stats.so`
+- macOS: `malloc-stats.dylib`
+
+## Usage (Linux / other POSIX)
 
 ```
 $ LD_PRELOAD=/path/to/malloc-stats.so your-binary args...
 ```
 
-## Interpretting the results
+## Usage (macOS)
+
+```
+$ DYLD_INSERT_LIBRARIES=/path/to/malloc-stats.dylib your-binary args...
+```
+
+Note: On macOS, `DYLD_INSERT_LIBRARIES` is restricted for some protected/system binaries.
+
+## Interpreting the results
 
 Sample usage:
 ```
